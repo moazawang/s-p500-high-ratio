@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>S&P 500 創新高價股數量比 vs 大盤指數</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            min-height: 100vh;
+            padding: 20px;
+            color: #e0e0e0;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            font-size: 28px;
+            margin-bottom: 8px;
+            background: linear-gradient(90deg, #f7971e, #ffd200);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .subtitle {
+            text-align: center;
+            color: #888;
+            font-size: 14px;
+            margin-bottom: 24px;
+        }
+        .stats-row {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .stat-card {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 16px 24px;
+            text-align: center;
+            min-width: 160px;
+            flex: 1;
+            max-width: 220px;
+        }
+        .stat-card .label {
+            font-size: 13px;
+            color: #999;
+            margin-bottom: 6px;
+        }
+        .stat-card .value {
+            font-size: 26px;
+            font-weight: bold;
+        }
+        .stat-card .value.highlight { color: #ffd200; }
+        .stat-card .value.green { color: #4caf50; }
+        .stat-card .value.blue { color: #42a5f5; }
+        .stat-card .value.cyan { color: #26c6da; }
+        .chart-wrapper {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+        canvas {
+            width: 100% !important;
+        }
+        .table-wrapper {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px;
+            padding: 20px;
+            overflow-x: auto;
+        }
+        .table-wrapper h2 {
+            font-size: 18px;
+            margin-bottom: 12px;
+            color: #ccc;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        th {
+            background: rgba(255,255,255,0.08);
+            padding: 10px 12px;
+            text-align: center;
+            color: #aaa;
+            font-weight: 600;
+        }
+        td {
+            padding: 10px 12px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        tr:hover td {
+            background: rgba(255,255,255,0.04);
+        }
+        .footer {
+            text-align: center;
+            color: #555;
+            font-size: 12px;
+            margin-top: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>S&P 500 創新高價股數量比 vs 大盤指數</h1>
+        <p class="subtitle">每日追蹤：S&P 500 成分股創 52 週新高佔比（金色）與 S&P 500 指數走勢（青色）</p>
+
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="label">S&P 500 指數</div>
+                <div class="value cyan" id="latest-sp500">—</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">創新高比例</div>
+                <div class="value highlight" id="latest-ratio">—</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">創新高股票數</div>
+                <div class="value green" id="latest-count">—</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">有效樣本數</div>
+                <div class="value blue" id="latest-valid">—</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">資料天數</div>
+                <div class="value" id="total-days">—</div>
+            </div>
+        </div>
+
+        <div class="chart-wrapper">
+            <canvas id="mainChart" height="420"></canvas>
+        </div>
+
+        <div class="table-wrapper">
+            <h2>歷史資料</h2>
+            <table id="dataTable">
+                <thead>
+                    <tr>
+                        <th>日期</th>
+                        <th>S&P 500 指數</th>
+                        <th>有效股票數</th>
+                        <th>創新高股票數</th>
+                        <th>創新高比例 (%)</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <p class="footer">資料來源：Yahoo Finance ｜ S&P 500 成分股清單：Wikipedia ｜ 最後更新：<span id="last-update"></span></p>
+    </div>
+
+    <script>
+        const dates = ["2026-04-09"];
+        const ratios = [4.78];
+        const newHighs = [24];
+        const validCounts = [502];
+        const sp500Values = [6782.81];
+
+        const lastIdx = dates.length - 1;
+        document.getElementById('latest-ratio').textContent = ratios[lastIdx] + '%';
+        document.getElementById('latest-count').textContent = newHighs[lastIdx] + ' 檔';
+        document.getElementById('latest-valid').textContent = validCounts[lastIdx] + ' 檔';
+        document.getElementById('total-days').textContent = dates.length + ' 天';
+        document.getElementById('last-update').textContent = dates[lastIdx];
+
+        const latestSP500 = sp500Values[lastIdx];
+        document.getElementById('latest-sp500').textContent =
+            latestSP500 !== null ? latestSP500.toLocaleString() : '—';
+
+        const ctx = document.getElementById('mainChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: dates,
+                datasets: [
+                    {
+                        label: '創新高比例 (%)',
+                        data: ratios,
+                        borderColor: '#ffd200',
+                        backgroundColor: 'rgba(255,210,0,0.08)',
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: '#ffd200',
+                        fill: true,
+                        tension: 0.3,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'S&P 500 指數',
+                        data: sp500Values,
+                        borderColor: '#26c6da',
+                        backgroundColor: 'rgba(38,198,218,0.08)',
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: '#26c6da',
+                        fill: true,
+                        tension: 0.3,
+                        yAxisID: 'y1',
+                        spanGaps: true
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                plugins: {
+                    legend: {
+                        labels: { color: '#ccc', font: { size: 14 } }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            afterLabel: function(context) {
+                                const i = context.dataIndex;
+                                if (context.datasetIndex === 0) {
+                                    return '創新高: ' + newHighs[i] + ' / ' + validCounts[i] + ' 檔';
+                                }
+                                return '';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: '#888', maxRotation: 45 },
+                        grid: { color: 'rgba(255,255,255,0.05)' }
+                    },
+                    y: {
+                        type: 'linear',
+                        position: 'left',
+                        ticks: {
+                            color: '#ffd200',
+                            callback: function(v) { return v + '%'; }
+                        },
+                        grid: { color: 'rgba(255,255,255,0.05)' },
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: '創新高比例 (%)',
+                            color: '#ffd200',
+                            font: { size: 13 }
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        position: 'right',
+                        ticks: {
+                            color: '#26c6da',
+                            callback: function(v) { return v.toLocaleString(); }
+                        },
+                        grid: {
+                            drawOnChartArea: false
+                        },
+                        title: {
+                            display: true,
+                            text: 'S&P 500 指數',
+                            color: '#26c6da',
+                            font: { size: 13 }
+                        }
+                    }
+                }
+            }
+        });
+
+        const tbody = document.querySelector('#dataTable tbody');
+        for (let i = dates.length - 1; i >= 0; i--) {
+            const tr = document.createElement('tr');
+            const sp500Display = sp500Values[i] !== null
+                ? sp500Values[i].toLocaleString()
+                : '—';
+            tr.innerHTML = `<td>${dates[i]}</td><td>${sp500Display}</td><td>${validCounts[i]}</td><td>${newHighs[i]}</td><td>${ratios[i]}%</td>`;
+            tbody.appendChild(tr);
+        }
+    </script>
+</body>
+</html>
