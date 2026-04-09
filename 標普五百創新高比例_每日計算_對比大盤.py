@@ -525,7 +525,7 @@ def generate_html_chart(df):
 
     print(f"📊 互動式圖表已產生: {HTML_PATH}")
 
-
+#TEST
 # ===== 主程式 =====
 if __name__ == "__main__":
     print("=" * 55)
